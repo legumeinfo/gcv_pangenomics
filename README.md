@@ -8,25 +8,25 @@ Currently implements an optimal algorithm for a tractable variation of the Appro
 
 To install the gcv_pangenomics extension on the GCV server, copy the `pangenomics` directory into the GCV `server` directory and add "gcv_pangenomics" to the list of installed apps in `settings.py`:
 
-  INSTALLED_APPS = [
-    ...
-    'services',
-    'pangenomics',
-    ...
-  ]
+    INSTALLED_APPS = [
+        ...
+        'services',
+        'pangenomics',
+        ...
+    ]
 
 Next add the gcv_pangenomics urls to GCV server's `urls.py` file in `/server/server/`:
 
-  urlpatterns = [
-    ...
-    url(r'^services/', include('services.urls')),
-    url(r'^pangenomics/', include('pangenomics.urls')),
-    ...
-  ]
+    urlpatterns = [
+        ...
+        url(r'^services/', include('services.urls')),
+        url(r'^pangenomics/', include('pangenomics.urls')),
+        ...
+    ]
 
 Lastly, add the gcv_pangenomics requirements to the GCV virtual environment:
 
-  (venv) pip install -r pangenomics/requirements.txt
+    (venv) pip install -r pangenomics/requirements.txt
 
 ## Use
 
@@ -34,4 +34,4 @@ The AFS algorithm finds intervals on a query chromosome's ordered list of gene f
 
 For now, such intervals can be found by directly visiting the following url:
 
-  <host>/find-queries/<chromosome id>/<matched>/<intermediate>/<support>/
+    <host>/find-queries/<chromosome id>/<matched>/<intermediate>/<support>/
