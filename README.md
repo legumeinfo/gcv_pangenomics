@@ -34,4 +34,4 @@ The AFS algorithm finds intervals on a query chromosome's ordered list of gene f
 
 For now, such intervals can be found by directly visiting the following url:
 
-    <host>/find-queries/<chromosome id>/<matched>/<intermediate>/<support>/
+    <host>/pangenomics/find-queries/<chromosome name>/<matched>/<intermediate>/<support>/

@@ -27,13 +27,7 @@ def findQueries(request, chromosome, matched, intermediate, support):
 
     # parse the parameters
     #chromosome = POST['chromosome']
-    try:
-        chromosome = int(chromosome)
-        if chromosome < 0:
-            raise ValueError('"chromosome" must be an integer id')
-    except:
-        return HttpResponseBadRequest
-    chromosome_obj = get_object_or_404(Feature, pk=chromosome)
+    chromosome_obj = get_object_or_404(Feature, name=chromosome)
     #matched = POST['matched']
     try:
         matched = int(matched)
@@ -59,7 +53,7 @@ def findQueries(request, chromosome, matched, intermediate, support):
     # find exact match intervals
     print 'find intervals'
     t0 = time.time()
-    path_intervals = findIntervals(chromosome)
+    path_intervals = findIntervals(chromosome_obj.pk)
     duration = time.time() - t0
     print duration, 'seconds'
 
