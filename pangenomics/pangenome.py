@@ -1,7 +1,7 @@
 from django.dispatch import receiver
 from signals import app_ready
 from apps import PangenomicsConfig
-from services.models import GeneOrder, GeneFamilyAssignment
+from services.models import Feature, GeneOrder, GeneFamilyAssignment
 import networkx as nx
 from collections import defaultdict
 from Queue import PriorityQueue
@@ -21,7 +21,8 @@ GENE_FAMILY_PAN = None
 def ready_handler(sender, **kwargs):
     print 'Constructing gene family pan-genome graph. This may take a few minutes.'
     global GENE_FAMILY_PAN
-    GENE_FAMILY_PAN = pathsToGraph(getPaths())
+    gene_paths, family_paths = getPaths()
+    GENE_FAMILY_PAN = pathsToGraph(gene_paths, family_paths)
 
 
 #################################
@@ -29,10 +30,10 @@ def ready_handler(sender, **kwargs):
 #################################
 
 
-def pathsToGraph(paths):
+def pathsToGraph(gene_paths, family_paths):
     # make the graph
-    g = nx.Graph(paths=paths)
-    for chromosome, path in g.graph['paths'].iteritems():
+    g = nx.Graph(gene_paths=gene_paths, family_paths=family_paths)
+    for chromosome, path in g.graph['family_paths'].iteritems():
         g.add_nodes_from(path)
 
     # initialize each node
@@ -40,7 +41,7 @@ def pathsToGraph(paths):
         g.node[n]['paths'] = defaultdict(list)
 
     # thread each path through the graph
-    for chromosome, path in g.graph['paths'].iteritems():
+    for chromosome, path in g.graph['family_paths'].iteritems():
         l = len(path) - 1
         for i in range(l):
             n1 = path[i]
@@ -73,13 +74,19 @@ def getPaths():
     gene_families = dict((o.gene_id, o.family_label) for o in family_assigns)
     
     # make a path of ordered gene families for each chromosome
+    chromosome_gene_paths = {}
     chromosome_family_paths = {}
     for chromosome, orders in grouped_orders.iteritems():
-        chromosome_family_paths[chromosome] = [
-            gene_families.get(o.gene_id, o.gene_id) for o in orders
-        ]  # using gene id for orphan genes ensures a unique node in the graph
+        gene_path = []
+        family_path = []
+        for o in orders:
+            gene_path.append(o.gene_id)
+            family = gene_families.get(o.gene_id, o.gene_id)
+            family_path.append(family)
+        chromosome_gene_paths[chromosome] = gene_path
+        chromosome_family_paths[chromosome] = family_path
 
-    return chromosome_family_paths
+    return chromosome_gene_paths, chromosome_family_paths
 
 
 ##############################
@@ -98,7 +105,7 @@ def findIntervals(chromosome):
   intervals = defaultdict(list)
   prev = defaultdict(list)
   # traverse each node on the target chromosome's path
-  for i, n in enumerate(GENE_FAMILY_PAN.graph['paths'][chromosome]):
+  for i, n in enumerate(GENE_FAMILY_PAN.graph['family_paths'][chromosome]):
     current = defaultdict(list)
     # for each path that traverses the node
     for p in set(prev.keys()) | set(GENE_FAMILY_PAN.node[n]['paths'].keys()):
@@ -197,4 +204,14 @@ def findQueryIntervals(intervals, support):
 
 
 def intervalsToQueries(chromosome, intervals):
-    return []
+  path = GENE_FAMILY_PAN.graph['gene_paths'][chromosome]
+  gene_ids = []
+  gene_intervals = []
+  for s, t in intervals:
+    int_ids = path[s:t+1]
+    gene_ids += int_ids
+    gene_intervals.append(int_ids)
+  genes = Feature.objects.only('name').filter(pk__in=gene_ids)
+  gene_names = dict((g.pk, g.name) for g in genes)
+  queries = [map(lambda g: gene_names[g], query) for query in gene_intervals]
+  return queries
