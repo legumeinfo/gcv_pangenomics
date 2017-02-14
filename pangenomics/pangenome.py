@@ -176,14 +176,18 @@ def findQueryIntervals(intervals, support):
   q = PriorityQueue()
   queries = []
   start = None
-  for s, t in intervals:
+  for s, t in sorted_intervals:
+    end = None
     while not q.empty() and q.queue[0] < s:
-      end = q.get()
+      car = q.get()
       if q.qsize() == support - 1:
-        queries.append((start, end))
+        end = car
     q.put(t)
     if q.qsize() == support:
       start = s
+    elif q.qsize() < support and start is not None:
+      queries.append((start, end))
+      start = None
   end = None
   while q.qsize() >= support:
     end = q.get()
