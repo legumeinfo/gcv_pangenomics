@@ -14,7 +14,7 @@ class Feature(Base):
   seqlen = Column(Integer)
  
  
-class FeatureLoc(Base):
+class Featureloc(Base):
   __tablename__ = 'featureloc'
   featureloc_id = Column(Integer, primary_key=True)
   feature_id = Column(Integer, ForeignKey('feature'))
