@@ -10,5 +10,6 @@ object App {
     val sc = new SparkContext(conf)
     // construct the graph
     val graphLoader = new GraphLoader(sc)
+    graphLoader.loadGeneGraph()
   }
 }

@@ -7,6 +7,10 @@
   <description>A pan-genomics extension module for the Genome Context Viewer</description>
   <inceptionYear>2017</inceptionYear>
 
+  <url>https://github.com/legumeinfo/gcv_pangenomics</url>
+  <scm>
+    <url>https://github.com/legumeinfo/gcv_pangenomics</url>
+  </scm>
   <licenses>
     <license>
       <name>GNU General Public License v3.0</name>
@@ -18,14 +22,7 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
-  
-  <repositories>
-    <repository>
-      <id>gcv_pangenomics</id>
-      <url>https://github.com/legumeinfo/gcv_pangenomics</url>
-    </repository>
-  </repositories>
-  
+
   <properties>
     <!-- depends on Java version -->
     <maven.compiler.source>1.8</maven.compiler.source>
@@ -35,8 +32,9 @@
     <scala.version>2.11.8</scala.version>
     <scala.compat.version>2.11</scala.compat.version>
     <spark.version>2.1.1</spark.version>
+    <neo4j-driver.version>1.2.1</neo4j-driver.version>
   </properties>
-  
+
   <dependencies>
     <dependency>
       <groupId>org.scala-lang</groupId>
@@ -53,8 +51,13 @@
       <artifactId>spark-graphx_${scala.compat.version}</artifactId>
       <version>${spark.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.neo4j.driver</groupId>
+      <artifactId>neo4j-java-driver</artifactId>
+      <version>${neo4j-driver.version}</version>
+    </dependency>
   </dependencies>
-  
+
   <build>
     <sourceDirectory>src/main/scala</sourceDirectory>
     <!-- all dependencies to include in JAR -->
