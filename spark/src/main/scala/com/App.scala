@@ -1,5 +1,7 @@
-import org.apache.spark.{SparkConf, SparkContext}
+// graph
 import graph.{Algorithms, GraphLoader}
+// Apache Spark
+import org.apache.spark.{SparkConf, SparkContext}
 
 object App {
   def main(args: Array[String]): Unit = {
@@ -10,6 +12,6 @@ object App {
     val sc = new SparkContext(conf)
     // construct the graph
     val graphLoader = new GraphLoader(sc)
-    graphLoader.loadGeneGraph()
+    val geneGraph = graphLoader.loadGeneGraph()
   }
 }
