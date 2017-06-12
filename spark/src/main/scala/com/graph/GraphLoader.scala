@@ -37,9 +37,7 @@ class GraphLoader(
   // public
   def loadGeneGraph(): GeneGraph = {
     // create data structures
-    val vertexData = Map[Long, Map[Long, Set[Int]]]().withDefaultValue(
-      Map[Long, Set[Int]]().withDefaultValue(Set())
-    )
+    val vertexData = Map[Long, Map[Long, Set[Int]]]()
     val edgeData: Set[GeneEdge] = Set()
     // fetch the data
     val data: StatementResult = _session.run("MATCH (f:GeneFamily)<-[:GeneToGeneFamily]-(g:Gene)-[:GeneToChromosome]->(c:Chromosome) RETURN f, g, c ORDER BY c.id, g.number")
@@ -51,20 +49,17 @@ class GraphLoader(
       val familyId: Long     = datum.get("f").asNode().id()
       val geneNumber: Int    = datum.get("g").asNode().get("number").asInt()
       val chromosomeId: Long = datum.get("c").asNode().id()
-      vertexData(familyId)(chromosomeId).add(geneNumber)
+      vertexData.getOrElseUpdate(familyId, Map[Long, Set[Int]]())
+        .getOrElseUpdate(chromosomeId, Set()) += geneNumber
       if (prevNumber == geneNumber-1) {
-        edgeData.add(Edge(prevFamily, familyId))
+        edgeData += Edge(prevFamily, familyId)
       }
       prevNumber = geneNumber
       prevFamily = familyId
     }
     // create RDDs
     val vertexArray: Array[(Long, GeneVertex)] =
-      vertexData.map{case (f, paths) => {
-        (f, GeneVertex(paths = paths.map{case (c, numbers) => {
-          (c, numbers.toSet)
-        }}.toMap))
-      }}.toArray
+      vertexData.map{case (f, paths) => (f, GeneVertex(paths))}.toArray
     val vertices: RDD[(VertexId, GeneVertex)] = sc.parallelize(vertexArray)
     val edges: RDD[GeneEdge] = sc.parallelize(edgeData.toSeq)
     // create graph

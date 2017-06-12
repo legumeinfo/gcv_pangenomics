@@ -13,5 +13,8 @@ object App {
     // construct the graph
     val graphLoader = new GraphLoader(sc)
     val geneGraph = graphLoader.loadGeneGraph()
+    // run the AFS algorithm
+    val algorithms = new Algorithms(sc)
+    algorithms.approximateFrequentSubpaths(geneGraph)
   }
 }

@@ -1,11 +1,12 @@
 package graph
 
 // scala
-import scala.collection.immutable.{Map, Set}
+import scala.collection.mutable.{Map, Set}
 // Apache Spark
 import org.apache.spark.graphx.{Graph, Edge}
 
 package object types {
+  // TODO: create generic graph class for Gene/DeBruijn to extend
   // gene graph types
   case class GeneVertex(paths: Map[Long, Set[Int]]) extends Serializable
   type GeneEdge  = Edge[Unit]
