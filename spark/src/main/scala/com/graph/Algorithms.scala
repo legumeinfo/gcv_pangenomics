@@ -3,16 +3,20 @@ package graph
 // graph
 import graph.types.{GeneGraph, GeneVertex}
 // Apache Spark
+import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Graph, VertexId}
 
 class Algorithms(sc: SparkContext) {
+  private type Interval  = ((Int, Int), (Int, Int))
+  private type Intervals = Iterable[Interval]
+
   def approximateFrequentSubpaths(
     g: GeneGraph,
     chromosomeId: Long,
     intermediate: Int,
     matched: Int
-  ) = {
+  ): RDD[(Long, Intervals, Intervals)] = {
     // only consider gene families on the query chromosome
     val chromosome = g.vertices.filter{
       case (id: VertexId, v: GeneVertex) => {
@@ -45,23 +49,23 @@ class Algorithms(sc: SparkContext) {
         val relCount = (relN-(pairs.size-(i+1)))/int
         ((refCount, relCount), (refN, relN))
       }}.groupBy{case (count, number) => count}
-      def multiMinMax(pairs: Iterable[((Int, Int), (Int, Int))]):
-      (Int, Int, Int, Int) = {
+      def multiMinMax(pairs: Intervals): Interval = {
         val refMin = pairs.minBy{case (count, (refN, relN)) => refN}._2._1
         val refMax = pairs.maxBy{case (count, (refN, relN)) => refN}._2._1
         val relMin = pairs.minBy{case (count, (refN, relN)) => relN}._2._2
         val relMax = pairs.maxBy{case (count, (refN, relN)) => relN}._2._2
-        (refMin, refMax, relMin, relMax)
+        ((refMin, refMax), (relMin, relMax))
       }
-      def largeEnough(nums: (Int, Int, Int, Int)): Boolean = {
-        nums._2 - nums._1 + 1 >= matched
+      def largeEnough(nums: Interval): Boolean = {
+        nums._1._2 - nums._1._1 + 1 >= matched
       }
       val forwardIntervals = forward.values.map(multiMinMax).filter(largeEnough)
       val reverseIntervals = reverse.values.map(multiMinMax).filter(largeEnough)
       (c, forwardIntervals, reverseIntervals)
     }}.filter{case (c, forward, reverse) => forward.nonEmpty || reverse.nonEmpty}
-    intervals.foreach(println)
+    return intervals
   }
+
   def frequentedRegions(g: GeneGraph, chrId: Long) = {
     // get all the nodes of the target chromosome
     // should be able to compute on a gene or de Bruijn graph

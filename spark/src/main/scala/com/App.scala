@@ -15,8 +15,8 @@ object App {
     val geneGraph = graphLoader.loadGeneGraph()
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
-    val id = 13L  // phavu.Chr01
-    val intermediate = 2
+    val id = 251L  // phavu.Chr01
+    val intermediate = 5
     val matched = 10
     algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched)
   }
