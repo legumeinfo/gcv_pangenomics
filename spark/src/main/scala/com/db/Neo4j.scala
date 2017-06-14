@@ -1,4 +1,4 @@
-package graph
+package db
 
 // scala
 import scala.collection.mutable.{Map, Set}
@@ -15,7 +15,7 @@ import org.neo4j.driver.v1.{AuthTokens, Driver, GraphDatabase, Record, Session,
                             StatementResult}
 import org.neo4j.driver.v1.types.Node
 
-class GraphLoader(
+class Neo4j(
   sc: SparkContext,
   uri: String = "bolt://localhost:7687",
   user: String = "neo4j",
@@ -35,6 +35,11 @@ class GraphLoader(
   }
 
   // public
+  def loadDeBruijnGraph() = {
+    // graph will be loaded from Neo4j, for now
+    // caching?
+  }
+
   def loadGeneGraph(): GeneGraph = {
     // create data structures
     val vertexData = Map[Long, Map[Long, Set[Int]]]()
@@ -64,10 +69,5 @@ class GraphLoader(
     val edges: RDD[GeneEdge] = sc.parallelize(edgeData.toSeq)
     // create graph
     return Graph(vertices, edges)
-  }
-
-  def loadDeBruijnGraph() = {
-    // graph will be loaded from Neo4j, for now
-    // caching?
   }
 }

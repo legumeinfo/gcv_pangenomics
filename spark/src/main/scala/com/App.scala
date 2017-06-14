@@ -1,5 +1,7 @@
+// db
+import db.Neo4j
 // graph
-import graph.{Algorithms, GraphLoader}
+import graph.Algorithms
 // Apache Spark
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -55,8 +57,8 @@ object App {
       .setMaster("local")
     val sc = new SparkContext(conf)
     // construct the graph
-    val graphLoader = new GraphLoader(sc)
-    val geneGraph = graphLoader.loadGeneGraph()
+    val db = new Neo4j(sc)
+    val geneGraph = db.loadGeneGraph()
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
     val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched)
