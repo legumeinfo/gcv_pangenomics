@@ -4,7 +4,51 @@ import graph.{Algorithms, GraphLoader}
 import org.apache.spark.{SparkConf, SparkContext}
 
 object App {
+  def quit() {
+    println("program <queryId> [<intermediate> <matched>]")
+    System.exit(0)
+  }
+
+  def parseArgs(args: Array[String]): (Long, Int, Int) = {
+    var id: Long = -1L  // invalid
+    var intermediate: Int = 5
+    var matched: Int = 10
+    if (args.size == 0) {
+      quit()
+    }
+    try {
+      id = args(0).toLong
+    } catch {
+      case _: Throwable => {
+        println("failed to parse <queryId>")
+        quit()
+      }
+    }
+    if (args.size > 1) {
+      try {
+        intermediate = args(1).toInt
+      } catch {
+        case _: Throwable => {
+          println("failed to parse <intermediate>")
+          println("using default: " + intermediate)
+        }
+      }
+    }
+    if (args.size > 2) {
+      try {
+        matched = args(2).toInt
+      } catch {
+        case _: Throwable => {
+          println("failed to parse <matched>")
+          println("using default: " + matched)
+        }
+      }
+    }
+    (id, intermediate, matched)
+  }
+
   def main(args: Array[String]): Unit = {
+    val (id, intermediate, matched) = parseArgs(args)
     // create the Spark context
     val conf = new SparkConf()
       .setAppName("my-app")
@@ -15,9 +59,7 @@ object App {
     val geneGraph = graphLoader.loadGeneGraph()
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
-    val id = 251L  // phavu.Chr01
-    val intermediate = 5
-    val matched = 10
-    algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched)
+    val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched)
+    intervals.foreach(println)
   }
 }

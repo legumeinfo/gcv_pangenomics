@@ -1,16 +1,13 @@
 package graph
 
 // graph
-import graph.types.{GeneGraph, GeneVertex}
+import graph.types.{GeneGraph, GeneVertex, Interval, Intervals}
 // Apache Spark
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Graph, VertexId}
 
 class Algorithms(sc: SparkContext) {
-  private type Interval  = ((Int, Int), (Int, Int))
-  private type Intervals = Iterable[Interval]
-
   def approximateFrequentSubpaths(
     g: GeneGraph,
     chromosomeId: Long,
