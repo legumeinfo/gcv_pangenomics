@@ -3,7 +3,6 @@ package graph
 // graph
 import graph.types.{GeneGraph, GeneVertex, Interval, Intervals}
 // Apache Spark
-import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Graph, VertexId}
 
@@ -13,7 +12,7 @@ class Algorithms(sc: SparkContext) {
     chromosomeId: Long,
     intermediate: Int,
     matched: Int
-  ): RDD[(Long, Intervals, Intervals)] = {
+  ): Array[(Long, Intervals, Intervals)] = {
     // only consider gene families on the query chromosome
     val chromosome = g.vertices.filter{
       case (id: VertexId, v: GeneVertex) => {
@@ -60,7 +59,7 @@ class Algorithms(sc: SparkContext) {
       val reverseIntervals = reverse.values.map(multiMinMax).filter(largeEnough)
       (c, forwardIntervals, reverseIntervals)
     }}.filter{case (c, forward, reverse) => forward.nonEmpty || reverse.nonEmpty}
-    return intervals
+    return intervals.collect()
   }
 
   def frequentedRegions(g: GeneGraph, chrId: Long) = {

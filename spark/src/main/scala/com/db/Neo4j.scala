@@ -3,7 +3,7 @@ package db
 // scala
 import scala.collection.mutable.{Map, Set}
 // graph
-import graph.types.{GeneVertex, GeneEdge, GeneGraph}
+import graph.types.{GeneVertex, GeneEdge, GeneGraph, Interval, Intervals}
 // make the class automatically release resources
 import java.io.Closeable
 // Apache Spark
@@ -69,5 +69,9 @@ class Neo4j(
     val edges: RDD[GeneEdge] = sc.parallelize(edgeData.toSeq)
     // create graph
     return Graph(vertices, edges)
+  }
+
+  def loadIntervalData(intervals: Array[(Long, Intervals, Intervals)]) = {
+
   }
 }
