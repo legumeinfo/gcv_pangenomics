@@ -66,6 +66,6 @@ object App {
     val intervalData = db.loadIntervalData(id, intervals)
     val json = new JSON()
     val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
-    println(macroJSON)
+    json.dump("macro.json", macroJSON)
   }
 }

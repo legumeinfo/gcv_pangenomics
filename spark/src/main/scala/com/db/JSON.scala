@@ -1,5 +1,7 @@
 package db
 
+// Java
+import java.io.{PrintWriter, File}
 // db
 import db.types.{ChromosomeGenes, Chromosomes, ChromosomeOrganisms}
 // graph
@@ -29,10 +31,18 @@ class JSON {
           val o = organisms(id)
           "{\"genus\":\"" + o.genus +"\",\"species\":\"" + o.species + "\"," +
           "\"chromosome\":\"" + chromosomes(id).name + "\",\"blocks\":[" +
-          blockJSON(forward, "+") + "," + blockJSON(reverse, "-") +
+            blockJSON(forward, "+") +
+            (if (forward.nonEmpty && reverse.nonEmpty) "," else "") +
+            blockJSON(reverse, "-") +
           "]}"
         }}.mkString(",") +
       "]}"
     return json
+  }
+
+  def dump(path: String, json: String) = {
+    val pw = new PrintWriter(new File(path))
+    pw.write(json)
+    pw.close
   }
 }
