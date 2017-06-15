@@ -61,7 +61,7 @@ object App {
     val geneGraph = db.loadGeneGraph()
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
-    val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched)
-    intervals.foreach(println)
+    val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched).collect()
+    val intervalData = db.loadIntervalData(id, intervals)
   }
 }
