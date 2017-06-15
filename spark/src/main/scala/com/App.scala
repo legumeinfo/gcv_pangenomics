@@ -1,5 +1,5 @@
 // db
-import db.Neo4j
+import db.{JSON, Neo4j}
 // graph
 import graph.Algorithms
 // Apache Spark
@@ -62,6 +62,10 @@ object App {
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
     val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched).collect()
+    // dump the AFS data to a GCV macro-synteny JSON
     val intervalData = db.loadIntervalData(id, intervals)
+    val json = new JSON()
+    val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
+    println(macroJSON)
   }
 }
