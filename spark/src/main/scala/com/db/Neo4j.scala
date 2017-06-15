@@ -6,7 +6,8 @@ import scala.collection.immutable.{Map => IMap}
 import scala.collection.mutable.{Map, Set}
 
 // db
-import db.types.{Chromosome, Gene, Organism}
+import db.types.{Chromosome, Gene, Organism, ChromosomeGenes, Chromosomes,
+                 ChromosomeOrganisms}
 // graph
 import graph.types.{GeneVertex, GeneEdge, GeneGraph, Interval, Intervals}
 // make the class automatically release resources
@@ -79,16 +80,7 @@ class Neo4j(
   def loadIntervalData(
     chromosomeId: Long,
     intervals: Array[(Long, Intervals, Intervals)]
-  ): (IMap[Long, IMap[Int, Gene]], IMap[Long, Organism]) = {
-    // get the query chromosome
-    val chromosomeNode: Node = _session.run(
-      "MATCH (c:Chromosome) WHERE id(c) = " + chromosomeId + " RETURN c"
-    ).single().get("c").asNode()
-    val chromosome = Chromosome(
-      chromosomeNode.id(),
-      chromosomeNode.get("name").asString(),
-      chromosomeNode.get("length").asInt()
-    )
+  ): (ChromosomeGenes, Chromosomes, ChromosomeOrganisms) = {
     // make a list of gene numbers for each chromosome, including the query
     val (relatives, chromosomeIntervals, relativeNumbers) = intervals.map{
     case (r, forward, reverse) => {
@@ -101,7 +93,7 @@ class Neo4j(
         List(min, max)
       }}.toSet)
     // create a (chromosome -> (gene number -> gene)) map
-    var chromosomeGenesByNumber = chromosomeNumbers.map{
+    var chromosomeGenes = chromosomeNumbers.map{
     case (chromosome, numbers) => {
       val geneNumbers = numbers.mkString(",")
       val data: StatementResult = _session.run("MATCH (c:Chromosome)<-[:GeneToChromosome]-(g:Gene) WHERE id(c) = " + chromosome + " AND g.number in [" + geneNumbers + "] RETURN g")
@@ -120,17 +112,20 @@ class Neo4j(
       (chromosome, genes)
     }}
     // create a (chromosome -> organism) map
-    val chromosomeIds = relatives.mkString(",")
+    val chromosomeIds = chromosomeNumbers.keys.mkString(",")
     val data: StatementResult = _session.run("MATCH (c:Chromosome)-[:ChromosomeToOrganism]->(o:Organism) WHERE id(c) in [" + chromosomeIds + "] RETURN c, o")
-    val chromosomeOrganisms = data.asScala.map(r => {
+    val (chromosomes, organisms) = data.asScala.map(r => {
       val c = r.get("c").asNode()
       val o = r.get("o").asNode()
-      (c.id(), Organism(
-        o.id(),
-        o.get("genus").toString(),
-        o.get("species").toString()
+      val id = c.id()
+      val chromosome = (id, Chromosome(
+        id, c.get("name").asString(), c.get("length").asInt()
       ))
-    }).toMap
-    return (chromosomeGenesByNumber, chromosomeOrganisms)
+      val organism = (id, Organism(
+        o.id(), o.get("genus").asString(), o.get("species").asString()
+      ))
+      (chromosome, organism)
+    }).toStream.unzip
+    return (chromosomeGenes, chromosomes.toMap, organisms.toMap)
   }
 }
