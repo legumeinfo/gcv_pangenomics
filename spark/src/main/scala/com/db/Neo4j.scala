@@ -52,7 +52,7 @@ class Neo4j(
     val edgeData: Set[GeneEdge] = Set()
     // fetch the data
     val data: StatementResult = _session.run("MATCH (f:GeneFamily)<-[:GeneToGeneFamily]-(g:Gene)-[:GeneToChromosome]->(c:Chromosome) RETURN f, g, c ORDER BY c.id, g.number")
-    var prevNumber: Int = -1
+    var prevNumber: Int = -2  // assumes smallest number is 0
     var prevFamily: Long = -1L
     // populate data structures
     while (data.hasNext()) {

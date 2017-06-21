@@ -18,5 +18,5 @@ package object types {
 
   // Approximate Frequent Subpath types
   type Interval  = ((Int, Int), (Int, Int))
-  type Intervals = Iterable[Interval]
+  type Intervals = List[Interval]
 }

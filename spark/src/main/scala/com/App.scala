@@ -53,7 +53,8 @@ object App {
     val (id, intermediate, matched) = parseArgs(args)
     // create the Spark context
     val conf = new SparkConf()
-      .setAppName("my-app")
+      .setMaster("local[4]")
+      .setAppName("gcv-pangenomics")
       .setMaster("local")
     val sc = new SparkContext(conf)
     // construct the graph
@@ -61,7 +62,9 @@ object App {
     val geneGraph = db.loadGeneGraph()
     // run the AFS algorithm
     val algorithms = new Algorithms(sc)
-    val intervals = algorithms.approximateFrequentSubpaths(geneGraph, id, intermediate, matched).collect()
+    val intervals = algorithms.approximateFrequentSubpaths(
+      geneGraph, id, intermediate, matched
+    ).collect()
     // dump the AFS data to a GCV macro-synteny JSON
     val intervalData = db.loadIntervalData(id, intervals)
     val json = new JSON()
