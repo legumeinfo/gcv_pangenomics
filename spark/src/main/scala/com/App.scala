@@ -55,7 +55,6 @@ object App {
     val conf = new SparkConf()
       .setMaster("local[4]")
       .setAppName("gcv-pangenomics")
-      .setMaster("local")
     val sc = new SparkContext(conf)
     // construct the graph
     val db = new Neo4j(sc)
