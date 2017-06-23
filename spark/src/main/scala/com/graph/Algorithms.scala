@@ -33,7 +33,7 @@ class Algorithms(sc: SparkContext) {
           for (relN <- v.paths(c)) yield (c, ((refN, relN), (0, (-1, -1))))
         }
       }.flatten }.flatten
-    }}.sortBy(t => (t._1, t._2)).groupByKey
+    }}.groupByKey
     // find approximately matching intervals
     val int = intermediate + 1
     val intervals = chromosomes.map{case (c, pairPaths) => {
