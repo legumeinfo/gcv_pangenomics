@@ -59,7 +59,7 @@ object App {
     // construct the graph
     val db = new Neo4j(sc)
     val geneGraph = db.loadGeneGraph()
-    // run the AFS algorithm
+    // run the AFS algorithms
     val algorithms = new Algorithms(sc)
     val intervals = algorithms.approximateFrequentSubpaths(
       geneGraph, id, intermediate, matched

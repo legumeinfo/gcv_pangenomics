@@ -1,0 +1,24 @@
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.rawgit.com/legumeinfo/lis_context_viewer/464df287/client/assets/css/gcv.css">
+  <script src="https://d3js.org/d3.v3.min.js"></script>
+  <script src="https://cdn.rawgit.com/legumeinfo/lis_context_viewer/464df287/client/assets/js/gcv/enhancement.js"></script>
+  <script src="https://cdn.rawgit.com/legumeinfo/lis_context_viewer/464df287/client/assets/js/gcv/context.js"></script>
+  <script src="https://cdn.rawgit.com/legumeinfo/lis_context_viewer/464df287/client/assets/js/gcv/min/synteny.min.js"></script>
+  <script src="https://cdn.rawgit.com/legumeinfo/lis-taxon-symbology/01e02d99/dist/bundle.js"></script>
+</head>
+<body>
+  <div id="viewer" style="width:100%;height:100%;scroll-x:hidden;scroll-y:auto;"></div>
+  <script type="text/javascript">
+    var data = ;
+    var viewer = new GCV.Synteny(
+      document.getElementById('viewer'),
+      data,
+      {
+        autoResize: true,
+        //colors: taxonChroma.get
+      }
+    );  
+  </script>
+</body>
+</html>
