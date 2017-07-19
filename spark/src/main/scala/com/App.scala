@@ -61,13 +61,15 @@ object App {
     val geneGraph = db.loadGeneGraph()
     // run the AFS algorithms
     val algorithms = new Algorithms(sc)
-    val intervals = algorithms.approximateFrequentSubpaths(
-      geneGraph, id, intermediate, matched
-    ).collect()
+    //val intervals = algorithms.approximateFrequentSubpaths(
+    //  geneGraph, id, intermediate, matched
+    //).collect()
     // dump the AFS data to a GCV macro-synteny JSON
-    val intervalData = db.loadIntervalData(id, intervals)
-    val json = new JSON()
-    val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
-    json.dump("macro.json", macroJSON)
+    //val intervalData = db.loadIntervalData(id, intervals)
+    //val json = new JSON()
+    //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
+    //json.dump("macro.json", macroJSON)
+    // run the FR algorithm
+    val regions = algorithms.frequentedRegions(geneGraph).collect()
   }
 }

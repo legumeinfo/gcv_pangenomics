@@ -103,8 +103,92 @@ class Algorithms(sc: SparkContext) {
     return intervals
   }
 
-  def frequentedRegions(g: GeneGraph, chrId: Long) = {
-    // get all the nodes of the target chromosome
-    // should be able to compute on a gene or de Bruijn graph
+  //private def _coarsen(
+  //  g: Graph[V, E],
+  //  pred: Triplet[V, E] => Boolean,
+  //  reduce: (V,V) => V
+  //): Graph[V,E] = {
+  //  // Restrict graph to contractable edges
+  //  val subG = g.subgraph(v => True, pred)
+  //  // Compute connected component id for all V
+  //  val cc: Col[Id, Id] = ConnectedComp(subG).vertices
+  //  // Merge all vertices in same component
+  //  val superVerts = g.vertices.leftJoin(cc).map {
+  //  (vId, (vProp, cc)) => (cc, vProp))
+  //  }.reduceByKey(reduce)
+  //  // Link remaining edges between components
+  //  val invG = g.subgraph(v=>True, !pred)
+  //  val remainingEdges =
+  //  invG.leftJoin(cc).triplets.map {
+  //  e => ((e.src.cc, e.dst.cc), e.attr)
+  //  }
+  //  // Return the final graph
+  //  Graph(superVerts, remainingEdges)
+  //}
+
+  private def _coarsen(g: GeneGraph) {
+    // 1) compute support for each edge
+    //g.triplets.map(e => {
+    g = g.mapTriplets(e => {
+      // a) union the nodes' sub-node sets
+      // b) for each path p:
+      //   i) union its node sets
+      //   ii) compute alpha (penetrance: fraction of nodes it traverses)
+      //   iii) 
+    })
+    // 2) compute maximal weighted matching
+    // 3) construct new graph with vertices of independent edges set combined
+    return g
+  }
+
+  case class CoarsenVertex(
+    nodes: Array[Long],
+    intervals: Map[Long, Array[(Float, Float, Int)]]
+  ) extends Serializable
+
+  // supporting path
+  def combineOverlappingIntervals(
+    intervals: Array[(Float, Float, Int)]
+  ): Array[(Float, Float, Int)] = {
+    // 1) create an array of (begin/end, increment, penetrance) tuples
+    val (begins, ends) = intervals.map{case (begin, end, count) => {
+      ((begin, 1, count), (end, -1, 0))
+    }}.unzip
+    val intervalPoints = (begins ++ end).sortBy{case (p, i, _) => (p, -i)}
+    // 2) combine overlapping intervals into a single interval
+    val combinedIntervals = Array[(Float, Float, Int)]()
+    var counter = 0
+    var begin: Float = 0
+    var penetrance = 0
+    for ((p, i, c) <- intervalPoints) {
+      if (counter == 0) {
+        begin = p
+        penetrance = 0
+      }
+      counter += i
+      penetrance += c
+      if (counter == 0) {
+        combinedIntervals :+ (begin, p, pentrance)
+      }
+    }
+    combinedIntervals
+  }
+
+  def frequentedRegions(g: GeneGraph, alpha: Float, kappa: Integer) = {
+    // create the initial FR graph
+    halfKappa = kappa.toFloat/2
+    g = g.mapVertices((id, v) =>  {
+      val intervals = v.paths.map{case (p, nums) => {
+        val numArray = nums.toArray.map(n => {
+          (n.asFloat - halfKappa, n.asFloat + halfKappa, 1)
+        })
+        (p, combineIntervals(intervals).map{case (b, e, _) => (b, e, 1)})
+      }}
+      (id, CoarsenVertex(Array(id), CoarsenVertex(intervals)))
+    })
+    // perform hierarchical clustering via coarsening
+    while (g.numVertices > 1) {
+      g = _coarsen(g)
+    }
   }
 }
