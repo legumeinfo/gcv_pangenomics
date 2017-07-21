@@ -15,6 +15,14 @@ package object types {
   case class DeBruijnVertex(paths: Map[Long, Set[Int]]) extends Serializable
   type DeBruijnEdge  = Edge[Unit]
   type DeBruijnGraph = Graph[DeBruijnVertex, DeBruijnEdge]
+  // FR graph types
+  case class FRVertex(
+    nodes: Array[Long],
+    intervals: Map[Long, Array[(Float, Float, Int)]]
+    supporting: Set[Long]
+  ) extends Serializable
+  type FREdge  = Edge[Unit]
+  type FRGraph = Graph[FRVertex, Unit]
 
   // Approximate Frequent Subpath types
   type Interval  = ((Int, Int), (Int, Int))

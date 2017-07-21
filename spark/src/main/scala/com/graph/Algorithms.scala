@@ -3,11 +3,12 @@ package graph
 // scala
 import scala.collection.mutable.SortedMap  // source copied from 2.12.x...
 // graph
-import graph.types.{GeneGraph, GeneVertex, Interval, Intervals}
+import graph.types.{FRGraph, FRVertex, GeneGraph, GeneVertex,
+                    Interval, Intervals}
 // Apache Spark
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
-import org.apache.spark.graphx.{Graph, VertexId}
+import org.apache.spark.graphx.{EdgeDirection, Graph, VertexId}
 
 class Algorithms(sc: SparkContext) {
   def approximateFrequentSubpaths(
@@ -126,28 +127,53 @@ class Algorithms(sc: SparkContext) {
   //  Graph(superVerts, remainingEdges)
   //}
 
-  private def _coarsen(g: GeneGraph) {
+  def coarsen(g: FRGraph) {
     // 1) compute support for each edge
-    //g.triplets.map(e => {
-    g = g.mapTriplets(e => {
+    val mergeGraph = g.mapTriplets(e => {
       // a) union the nodes' sub-node sets
       // b) for each path p:
       //   i) union its node sets
       //   ii) compute alpha (penetrance: fraction of nodes it traverses)
-      //   iii) 
+      //   iii) add p to supporting if it satisfies alpha/kappa constraints
     })
-    // 2) compute maximal weighted matching
+    // 2) greedily compute maximal weighted matching (greedy is ideal)
+    val initial = (-1, -1L)
+    merge.pregel(initial, Int.MaxValue, EdgeDirection.Either)(
+      // Vertex Program
+      (id, prev, msg) => {
+        val (active, weightMatch) = prev
+        if (active) {
+          (!(weightMatch == msg), msg)
+        } else {
+          prev
+        }
+      },
+      // Send Message
+      triplet => {
+        // TODO: is src always the current vertex?
+        val src = triplet.srcId
+        val dst = triplet.dstId
+        val (srcActive, (srcWeight, srcMatch)) = triplet.srcAttr
+        val (dstActive, (dstWeight, dstMatch)) = triplet.dstAttr
+        val w = triplet.attr
+        if (srcActive && dstActive) {
+          val m = if (srcWeight <= w) (w, src) else (-1, -1)
+          Iterator((dst, m))
+        } else if (!srcActive && dstActive && srcMatch == dst) {
+          Iterator((dst, (w, src))
+        } else {
+          Iterator.empty
+        }
+      },
+      // Merge Message
+      (a, b) => if (a._1 > b._1 || (a._1 == b._1 && a._2 > b._2)) a else b
+    )
     // 3) construct new graph with vertices of independent edges set combined
     return g
   }
 
-  case class CoarsenVertex(
-    nodes: Array[Long],
-    intervals: Map[Long, Array[(Float, Float, Int)]]
-  ) extends Serializable
-
-  // supporting path
-  def combineOverlappingIntervals(
+  // combines intervals that are overlapping into a single interval
+  def combineIntervals(
     intervals: Array[(Float, Float, Int)]
   ): Array[(Float, Float, Int)] = {
     // 1) create an array of (begin/end, increment, penetrance) tuples
@@ -174,21 +200,23 @@ class Algorithms(sc: SparkContext) {
     combinedIntervals
   }
 
+  // identifies groups of nodes (regions) that are frequently traversed by a
+  // consistent set of paths
   def frequentedRegions(g: GeneGraph, alpha: Float, kappa: Integer) = {
     // create the initial FR graph
-    halfKappa = kappa.toFloat/2
-    g = g.mapVertices((id, v) =>  {
+    halfKappa = kappa.toFloat / 2
+    var frGraph = g.mapVertices((id, v) =>  {
       val intervals = v.paths.map{case (p, nums) => {
         val numArray = nums.toArray.map(n => {
           (n.asFloat - halfKappa, n.asFloat + halfKappa, 1)
         })
         (p, combineIntervals(intervals).map{case (b, e, _) => (b, e, 1)})
       }}
-      (id, CoarsenVertex(Array(id), CoarsenVertex(intervals)))
+      (id, FRVertex(Array(id), intervals, intervals.keySet))
     })
     // perform hierarchical clustering via coarsening
-    while (g.numVertices > 1) {
-      g = _coarsen(g)
+    while (frGraph.numVertices > 1) {
+      frGraph = coarsen(frGraph)
     }
   }
 }
