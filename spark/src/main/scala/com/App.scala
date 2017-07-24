@@ -70,6 +70,6 @@ object App {
     //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
     //json.dump("macro.json", macroJSON)
     // run the FR algorithm
-    val regions = algorithms.frequentedRegions(geneGraph).collect()
+    val regions = algorithms.frequentedRegions(geneGraph, 0.75, 10)
   }
 }

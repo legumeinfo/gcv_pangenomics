@@ -3,12 +3,12 @@ package graph
 // scala
 import scala.collection.mutable.SortedMap  // source copied from 2.12.x...
 // graph
-import graph.types.{FRGraph, FRVertex, GeneGraph, GeneVertex,
+import graph.types.{FRGraph, FREdge,  FRVertex, GeneGraph, GeneVertex,
                     Interval, Intervals}
 // Apache Spark
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
-import org.apache.spark.graphx.{EdgeDirection, Graph, VertexId}
+import org.apache.spark.graphx.{Edge, EdgeDirection, Graph, VertexId}
 
 class Algorithms(sc: SparkContext) {
   def approximateFrequentSubpaths(
@@ -127,18 +127,35 @@ class Algorithms(sc: SparkContext) {
   //  Graph(superVerts, remainingEdges)
   //}
 
-  def coarsen(g: FRGraph) {
+  def coarsen(g: FRGraph, alpha: Double): FRGraph = {
     // 1) compute support for each edge
     val mergeGraph = g.mapTriplets(e => {
       // a) union the nodes' sub-node sets
+      val src = e.srcAttr
+      val dst = e.dstAttr
+      val nodes = src.nodes ++ dst.nodes
+      val size = nodes.size.toDouble
       // b) for each path p:
       //   i) union its node sets
+      val intervals = (src.intervals.keySet ++ dst.intervals.keySet).map(p => {
+        if (src.intervals.contains(p) && !dst.intervals.contains(p)) {
+          p -> src.intervals(p)
+        } else if (!src.intervals.contains(p) && dst.intervals.contains(p)) {
+          p -> dst.intervals(p)
+        } else {
+          p -> combineIntervals(src.intervals(p) ++ dst.intervals(p))
+        }
+      }).toMap
       //   ii) compute alpha (penetrance: fraction of nodes it traverses)
       //   iii) add p to supporting if it satisfies alpha/kappa constraints
-    })
-    // 2) greedily compute maximal weighted matching (greedy is ideal)
+      val supporting = intervals.filter{case (p, i) => {
+        i.filter{case (_, _, s) => alpha <= (s / size)}.nonEmpty
+      }}.keySet
+      FRVertex(nodes, intervals, supporting)
+    }).mapVertices((id, _) => (true, (0, 0L)))
+    // 2) greedily compute maximal weighted matching (greedy is ideal here)
     val initial = (-1, -1L)
-    merge.pregel(initial, Int.MaxValue, EdgeDirection.Either)(
+    val matched = mergeGraph.pregel(initial, Int.MaxValue, EdgeDirection.Either)(
       // Vertex Program
       (id, prev, msg) => {
         val (active, weightMatch) = prev
@@ -149,18 +166,18 @@ class Algorithms(sc: SparkContext) {
         }
       },
       // Send Message
-      triplet => {
+      edgeTriplet => {
         // TODO: is src always the current vertex?
-        val src = triplet.srcId
-        val dst = triplet.dstId
-        val (srcActive, (srcWeight, srcMatch)) = triplet.srcAttr
-        val (dstActive, (dstWeight, dstMatch)) = triplet.dstAttr
-        val w = triplet.attr
+        val src = edgeTriplet.srcId
+        val dst = edgeTriplet.dstId
+        val (srcActive, (srcWeight, srcMatch)) = edgeTriplet.srcAttr
+        val (dstActive, (dstWeight, dstMatch)) = edgeTriplet.dstAttr
+        val w = edgeTriplet.attr.nodes.size
         if (srcActive && dstActive) {
-          val m = if (srcWeight <= w) (w, src) else (-1, -1)
+          val m = if (srcWeight <= w) (w, src) else initial
           Iterator((dst, m))
         } else if (!srcActive && dstActive && srcMatch == dst) {
-          Iterator((dst, (w, src))
+          Iterator((dst, (w, src)))
         } else {
           Iterator.empty
         }
@@ -168,23 +185,47 @@ class Algorithms(sc: SparkContext) {
       // Merge Message
       (a, b) => if (a._1 > b._1 || (a._1 == b._1 && a._2 > b._2)) a else b
     )
-    // 3) construct new graph with vertices of independent edges set combined
-    return g
+    // 3) construct new FRGraph by contracting matching edges
+    val contractions = matched.triplets.filter(e => {
+      val (srcActive, (_, srcMatch)) = e.srcAttr
+      val (dstActive, (_, dstMatch)) = e.dstAttr
+      !srcActive && !dstActive && e.srcId == dstMatch && e.dstId == srcMatch
+    }).map(e => {
+      (math.min(e.srcId, e.dstId), e.attr)
+    })
+    val edges: RDD[FREdge] = matched.triplets.filter(e => {
+      val (srcActive, (_, srcMatch)) = e.srcAttr
+      val (dstActive, (_, dstMatch)) = e.dstAttr
+      !(!srcActive && !dstActive && e.srcId == dstMatch && e.dstId == srcMatch)
+    }).map(e => {
+      val (srcActive, (_, srcMatch)) = e.srcAttr
+      val (dstActive, (_, dstMatch)) = e.dstAttr
+      if (!srcActive && !dstActive) {
+        Edge(math.min(e.srcId, srcMatch), math.min(e.dstId, dstMatch))
+      } else if (!srcActive && dstActive) {
+        Edge(math.min(e.srcId, srcMatch), e.dstId)
+      } else if (srcActive && !dstActive) {
+        Edge(e.srcId, math.min(e.dstId, dstMatch))
+      } else {
+        Edge(e.srcId, e.dstId)
+      }
+    })
+    Graph(g.vertices, edges).joinVertices(contractions)((id, _, a) => a)
   }
 
   // combines intervals that are overlapping into a single interval
   def combineIntervals(
-    intervals: Array[(Float, Float, Int)]
-  ): Array[(Float, Float, Int)] = {
+    intervals: Array[(Double, Double, Int)]
+  ): Array[(Double, Double, Int)] = {
     // 1) create an array of (begin/end, increment, penetrance) tuples
     val (begins, ends) = intervals.map{case (begin, end, count) => {
       ((begin, 1, count), (end, -1, 0))
     }}.unzip
-    val intervalPoints = (begins ++ end).sortBy{case (p, i, _) => (p, -i)}
+    val intervalPoints = (begins ++ ends).sortBy{case (p, i, _) => (p, -i)}
     // 2) combine overlapping intervals into a single interval
-    val combinedIntervals = Array[(Float, Float, Int)]()
+    val combinedIntervals = Array[(Double, Double, Int)]()
     var counter = 0
-    var begin: Float = 0
+    var begin: Double = 0
     var penetrance = 0
     for ((p, i, c) <- intervalPoints) {
       if (counter == 0) {
@@ -194,7 +235,7 @@ class Algorithms(sc: SparkContext) {
       counter += i
       penetrance += c
       if (counter == 0) {
-        combinedIntervals :+ (begin, p, pentrance)
+        combinedIntervals :+ (begin, p, penetrance)
       }
     }
     combinedIntervals
@@ -202,21 +243,21 @@ class Algorithms(sc: SparkContext) {
 
   // identifies groups of nodes (regions) that are frequently traversed by a
   // consistent set of paths
-  def frequentedRegions(g: GeneGraph, alpha: Float, kappa: Integer) = {
+  def frequentedRegions(g: GeneGraph, alpha: Double, kappa: Integer) = {
     // create the initial FR graph
-    halfKappa = kappa.toFloat / 2
-    var frGraph = g.mapVertices((id, v) =>  {
+    val halfKappa = kappa.toDouble / 2
+    var frGraph: FRGraph = g.mapVertices((id, v) =>  {
       val intervals = v.paths.map{case (p, nums) => {
-        val numArray = nums.toArray.map(n => {
-          (n.asFloat - halfKappa, n.asFloat + halfKappa, 1)
+        val rawIntervals = nums.toArray.map(n => {
+          (n.toDouble - halfKappa, n.toDouble + halfKappa, 1)
         })
-        (p, combineIntervals(intervals).map{case (b, e, _) => (b, e, 1)})
+        (p, combineIntervals(rawIntervals).map{case (b, e, _) => (b, e, 1)})
       }}
-      (id, FRVertex(Array(id), intervals, intervals.keySet))
+      FRVertex(Array(id), intervals, intervals.keySet)
     })
     // perform hierarchical clustering via coarsening
     while (frGraph.numVertices > 1) {
-      frGraph = coarsen(frGraph)
+      frGraph = coarsen(frGraph, alpha)
     }
   }
 }

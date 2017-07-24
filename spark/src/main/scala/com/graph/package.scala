@@ -1,6 +1,8 @@
 package graph
 
 // scala
+import scala.collection.{Set => ISet}
+import scala.collection.{Map => IMap}
 import scala.collection.mutable.{Map, Set}
 // Apache Spark
 import org.apache.spark.graphx.{Graph, Edge}
@@ -18,8 +20,8 @@ package object types {
   // FR graph types
   case class FRVertex(
     nodes: Array[Long],
-    intervals: Map[Long, Array[(Float, Float, Int)]]
-    supporting: Set[Long]
+    intervals: IMap[Long, Array[(Double, Double, Int)]],
+    supporting: ISet[Long]
   ) extends Serializable
   type FREdge  = Edge[Unit]
   type FRGraph = Graph[FRVertex, Unit]
