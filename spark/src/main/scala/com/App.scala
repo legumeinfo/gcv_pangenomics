@@ -50,7 +50,7 @@ object App {
   }
 
   def main(args: Array[String]): Unit = {
-    val (id, intermediate, matched) = parseArgs(args)
+    //val (id, intermediate, matched) = parseArgs(args)
     // create the Spark context
     val conf = new SparkConf()
       .setMaster("local[4]")
@@ -60,7 +60,7 @@ object App {
     val db = new Neo4j(sc)
     val geneGraph = db.loadGeneGraph()
     // run the AFS algorithms
-    val algorithms = new Algorithms(sc)
+    //val algorithms = new Algorithms(sc)
     //val intervals = algorithms.approximateFrequentSubpaths(
     //  geneGraph, id, intermediate, matched
     //).collect()
@@ -70,6 +70,6 @@ object App {
     //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
     //json.dump("macro.json", macroJSON)
     // run the FR algorithm
-    val regions = algorithms.frequentedRegions(geneGraph, 0.75, 10)
+    val regions = Algorithms.frequentedRegions(geneGraph, 0.75, 10)
   }
 }

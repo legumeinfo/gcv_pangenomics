@@ -10,7 +10,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Edge, EdgeDirection, Graph, VertexId}
 
-class Algorithms(sc: SparkContext) {
+object Algorithms {
   def approximateFrequentSubpaths(
     g: GeneGraph,
     chromosomeId: Long,
@@ -160,24 +160,26 @@ class Algorithms(sc: SparkContext) {
       (id, prev, msg) => {
         val (active, weightMatch) = prev
         if (active) {
-          (!(weightMatch == msg), msg)
+          (!(weightMatch == msg && msg != initial), msg)
         } else {
           prev
         }
       },
       // Send Message
       edgeTriplet => {
-        // TODO: is src always the current vertex?
         val src = edgeTriplet.srcId
         val dst = edgeTriplet.dstId
         val (srcActive, (srcWeight, srcMatch)) = edgeTriplet.srcAttr
         val (dstActive, (dstWeight, dstMatch)) = edgeTriplet.dstAttr
-        val w = edgeTriplet.attr.nodes.size
+        val w = edgeTriplet.attr.supporting.size
         if (srcActive && dstActive) {
-          val m = if (srcWeight <= w) (w, src) else initial
-          Iterator((dst, m))
+          val srcMsg = if (dstWeight < w || (dstWeight == w && dstMatch <= src)) (w, dst) else initial
+          val dstMsg = if (srcWeight < w || (srcWeight == w && srcMatch <= dst)) (w, src) else initial
+          Iterator((src, srcMsg), (dst, dstMsg))
         } else if (!srcActive && dstActive && srcMatch == dst) {
           Iterator((dst, (w, src)))
+        } else if (srcActive && !dstActive && dstMatch == src) {
+          Iterator((src, (w, dst)))
         } else {
           Iterator.empty
         }
@@ -190,9 +192,7 @@ class Algorithms(sc: SparkContext) {
       val (srcActive, (_, srcMatch)) = e.srcAttr
       val (dstActive, (_, dstMatch)) = e.dstAttr
       !srcActive && !dstActive && e.srcId == dstMatch && e.dstId == srcMatch
-    }).map(e => {
-      (math.min(e.srcId, e.dstId), e.attr)
-    })
+    }).map(e => (math.min(e.srcId, e.dstId), e.attr))
     val edges: RDD[FREdge] = matched.triplets.filter(e => {
       val (srcActive, (_, srcMatch)) = e.srcAttr
       val (dstActive, (_, dstMatch)) = e.dstAttr
@@ -200,17 +200,20 @@ class Algorithms(sc: SparkContext) {
     }).map(e => {
       val (srcActive, (_, srcMatch)) = e.srcAttr
       val (dstActive, (_, dstMatch)) = e.dstAttr
-      if (!srcActive && !dstActive) {
-        Edge(math.min(e.srcId, srcMatch), math.min(e.dstId, dstMatch))
-      } else if (!srcActive && dstActive) {
-        Edge(math.min(e.srcId, srcMatch), e.dstId)
-      } else if (srcActive && !dstActive) {
-        Edge(e.srcId, math.min(e.dstId, dstMatch))
+      val u = if (srcActive) e.srcId else math.min(e.srcId, srcMatch)
+      val v = if (dstActive) e.dstId else math.min(e.dstId, dstMatch)
+      if (u < v) {
+        Edge(u, v)
       } else {
-        Edge(e.srcId, e.dstId)
+        Edge(v, u)
       }
     })
-    Graph(g.vertices, edges).joinVertices(contractions)((id, _, a) => a)
+    val out = Graph(g.vertices, edges)
+      .joinVertices(contractions)((id, _, a) => a)
+    out.outerJoinVertices(out.degrees) {
+      (id, attr, deg) => (attr, deg.getOrElse(0))
+    }.subgraph(vpred = (id, attr) => attr._2 > 0)
+     .mapVertices((id, attr) => attr._1)
   }
 
   // combines intervals that are overlapping into a single interval
@@ -223,7 +226,7 @@ class Algorithms(sc: SparkContext) {
     }}.unzip
     val intervalPoints = (begins ++ ends).sortBy{case (p, i, _) => (p, -i)}
     // 2) combine overlapping intervals into a single interval
-    val combinedIntervals = Array[(Double, Double, Int)]()
+    var combinedIntervals = Array[(Double, Double, Int)]()
     var counter = 0
     var begin: Double = 0
     var penetrance = 0
@@ -235,7 +238,7 @@ class Algorithms(sc: SparkContext) {
       counter += i
       penetrance += c
       if (counter == 0) {
-        combinedIntervals :+ (begin, p, penetrance)
+        combinedIntervals = combinedIntervals :+ (begin, p, penetrance)
       }
     }
     combinedIntervals
