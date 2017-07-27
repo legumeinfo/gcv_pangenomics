@@ -53,8 +53,8 @@ object App {
     //val (id, intermediate, matched) = parseArgs(args)
     // create the Spark context
     val conf = new SparkConf()
-      .setMaster("local[4]")
       .setAppName("gcv-pangenomics")
+      .setMaster("local[1]")
     val sc = new SparkContext(conf)
     // construct the graph
     val db = new Neo4j(sc)
@@ -70,6 +70,6 @@ object App {
     //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
     //json.dump("macro.json", macroJSON)
     // run the FR algorithm
-    val regions = Algorithms.frequentedRegions(geneGraph, 0.75, 10)
+    val regions = Algorithms.frequentedRegions(geneGraph, 0.75, 10, 2, 2)
   }
 }

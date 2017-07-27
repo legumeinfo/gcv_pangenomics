@@ -1,14 +1,14 @@
 package graph
 
 // scala
-import scala.collection.mutable.SortedMap  // source copied from 2.12.x...
+import scala.collection.mutable.{Map, SortedMap}  // source copied from 2.12.x...
 // graph
 import graph.types.{FRGraph, FREdge,  FRVertex, GeneGraph, GeneVertex,
                     Interval, Intervals}
 // Apache Spark
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
-import org.apache.spark.graphx.{Edge, EdgeDirection, Graph, VertexId}
+import org.apache.spark.graphx.{Edge, EdgeDirection, Graph, VertexId, VertexRDD}
 
 object Algorithms {
   def approximateFrequentSubpaths(
@@ -246,7 +246,13 @@ object Algorithms {
 
   // identifies groups of nodes (regions) that are frequently traversed by a
   // consistent set of paths
-  def frequentedRegions(g: GeneGraph, alpha: Double, kappa: Integer) = {
+  def frequentedRegions(
+    g: GeneGraph,
+    alpha: Double,
+    kappa: Integer,
+    minsize: Int,
+    minsupport: Int
+  ): VertexRDD[FRVertex] = {
     // create the initial FR graph
     val halfKappa = kappa.toDouble / 2
     var frGraph: FRGraph = g.mapVertices((id, v) =>  {
@@ -259,8 +265,26 @@ object Algorithms {
       FRVertex(Array(id), intervals, intervals.keySet)
     })
     // perform hierarchical clustering via coarsening
+    var iFRs = frGraph.vertices.filter{case (id, attr) => {
+      attr.nodes.size >= minsize && attr.supporting.size >= minsupport
+    }}
     while (frGraph.numVertices > 1) {
       frGraph = coarsen(frGraph, alpha)
+      val newFRs = frGraph.vertices.filter{case (id, attr) => {
+        attr.nodes.size >= minsize && attr.supporting.size >= minsupport
+      }}
+      val subFRs = newFRs.flatMap{case (id, attr) => {
+        attr.nodes.map(n => (n, attr.supporting.size))
+      }}
+      //iFRs = Graph(iFRs.minus(iFRs.innerJoin(subFRs){case (id, attr, _) => attr}) ++ newFRs, iFRs.context.emptyRDD[FREdge]).vertices
+      iFRs = Graph(
+        iFRs.leftJoin(subFRs){case (id, attr, support) => {
+          (attr, attr.supporting.size > support.getOrElse(-1))
+        }}.filter{case (id, (attr, keep)) => keep}.mapValues(attr => attr._1)
+         ++ newFRs,
+        iFRs.context.emptyRDD[FREdge]
+      ).vertices
     }
+    iFRs
   }
 }
