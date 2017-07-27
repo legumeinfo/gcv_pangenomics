@@ -9,7 +9,7 @@ import graph.types.{Interval, Intervals}
 // Apache graph
 import org.apache.spark.rdd.RDD
 
-class JSON {
+object JSON {
   def afsToMacroSynteny(
     chromosomeId: Long,
     intervals: Array[(Long, Intervals, Intervals)],

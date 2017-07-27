@@ -1,5 +1,5 @@
 // db
-import db.{JSON, Neo4j}
+import db.{BED, JSON, Neo4j}
 // graph
 import graph.Algorithms
 // Apache Spark
@@ -70,6 +70,10 @@ object App {
     //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
     //json.dump("macro.json", macroJSON)
     // run the FR algorithm
-    val regions = Algorithms.frequentedRegions(geneGraph, 0.75, 10, 2, 2)
+    val alpha = 0.75
+    val kappa = 10
+    val regions = Algorithms.frequentedRegions(geneGraph, alpha, kappa, 2, 2).collect()
+    val bed = BED.frsToBED(regions, alpha, kappa)
+    JSON.dump("FRs.bed", bed)
   }
 }
