@@ -104,117 +104,144 @@ object Algorithms {
     return intervals
   }
 
-  //private def _coarsen(
-  //  g: Graph[V, E],
-  //  pred: Triplet[V, E] => Boolean,
-  //  reduce: (V,V) => V
-  //): Graph[V,E] = {
-  //  // Restrict graph to contractable edges
-  //  val subG = g.subgraph(v => True, pred)
-  //  // Compute connected component id for all V
-  //  val cc: Col[Id, Id] = ConnectedComp(subG).vertices
-  //  // Merge all vertices in same component
-  //  val superVerts = g.vertices.leftJoin(cc).map {
-  //  (vId, (vProp, cc)) => (cc, vProp))
-  //  }.reduceByKey(reduce)
-  //  // Link remaining edges between components
-  //  val invG = g.subgraph(v=>True, !pred)
-  //  val remainingEdges =
-  //  invG.leftJoin(cc).triplets.map {
-  //  e => ((e.src.cc, e.dst.cc), e.attr)
-  //  }
-  //  // Return the final graph
-  //  Graph(superVerts, remainingEdges)
-  //}
-
-  def coarsen(g: FRGraph, alpha: Double): FRGraph = {
-    // 1) compute support for each edge
-    val mergeGraph = g.mapTriplets(e => {
-      // a) union the nodes' sub-node sets
-      val src = e.srcAttr
-      val dst = e.dstAttr
-      val nodes = src.nodes ++ dst.nodes
-      val size = nodes.size.toDouble
-      // b) for each path p:
-      //   i) union its node sets
-      val intervals = (src.intervals.keySet ++ dst.intervals.keySet).map(p => {
-        if (src.intervals.contains(p) && !dst.intervals.contains(p)) {
-          p -> src.intervals(p)
-        } else if (!src.intervals.contains(p) && dst.intervals.contains(p)) {
-          p -> dst.intervals(p)
-        } else {
-          p -> combineIntervals(src.intervals(p) ++ dst.intervals(p))
-        }
-      }).toMap
-      //   ii) compute alpha (penetrance: fraction of nodes it traverses)
-      //   iii) add p to supporting if it satisfies alpha/kappa constraints
-      val supporting = intervals.filter{case (p, i) => {
-        i.filter{case (_, _, s) => alpha <= (s / size)}.nonEmpty
-      }}.keySet
-      FRVertex(nodes, intervals, supporting)
-    }).mapVertices((id, _) => (true, (0, 0L)))
-    // 2) greedily compute maximal weighted matching (greedy is ideal here)
-    val initial = (-1, -1L)
-    val matched = mergeGraph.pregel(initial, Int.MaxValue, EdgeDirection.Either)(
-      // Vertex Program
-      (id, prev, msg) => {
-        val (active, weightMatch) = prev
-        if (active) {
-          (!(weightMatch == msg && msg != initial), msg)
-        } else {
-          prev
-        }
-      },
-      // Send Message
-      edgeTriplet => {
-        val src = edgeTriplet.srcId
-        val dst = edgeTriplet.dstId
-        val (srcActive, (srcWeight, srcMatch)) = edgeTriplet.srcAttr
-        val (dstActive, (dstWeight, dstMatch)) = edgeTriplet.dstAttr
-        val w = edgeTriplet.attr.supporting.size
-        if (srcActive && dstActive) {
-          val srcMsg = if (dstWeight < w || (dstWeight == w && dstMatch <= src)) (w, dst) else initial
-          val dstMsg = if (srcWeight < w || (srcWeight == w && srcMatch <= dst)) (w, src) else initial
-          Iterator((src, srcMsg), (dst, dstMsg))
-        } else if (!srcActive && dstActive && srcMatch == dst) {
-          Iterator((dst, (w, src)))
-        } else if (srcActive && !dstActive && dstMatch == src) {
-          Iterator((src, (w, dst)))
-        } else {
-          Iterator.empty
-        }
-      },
-      // Merge Message
-      (a, b) => if (a._1 > b._1 || (a._1 == b._1 && a._2 > b._2)) a else b
-    )
-    // 3) construct new FRGraph by contracting matching edges
-    val contractions = matched.triplets.filter(e => {
-      val (srcActive, (_, srcMatch)) = e.srcAttr
-      val (dstActive, (_, dstMatch)) = e.dstAttr
-      !srcActive && !dstActive && e.srcId == dstMatch && e.dstId == srcMatch
-    }).map(e => (math.min(e.srcId, e.dstId), e.attr))
-    val edges: RDD[FREdge] = matched.triplets.filter(e => {
-      val (srcActive, (_, srcMatch)) = e.srcAttr
-      val (dstActive, (_, dstMatch)) = e.dstAttr
-      !(!srcActive && !dstActive && e.srcId == dstMatch && e.dstId == srcMatch)
-    }).map(e => {
-      val (srcActive, (_, srcMatch)) = e.srcAttr
-      val (dstActive, (_, dstMatch)) = e.dstAttr
-      val u = if (srcActive) e.srcId else math.min(e.srcId, srcMatch)
-      val v = if (dstActive) e.dstId else math.min(e.dstId, dstMatch)
-      if (u < v) {
-        Edge(u, v)
-      } else {
-        Edge(v, u)
-      }
-    })
-    val out = Graph(g.vertices, edges)
-      .joinVertices(contractions)((id, _, a) => a)
-    out.outerJoinVertices(out.degrees) {
-      (id, attr, deg) => (attr, deg.getOrElse(0))
-    }.subgraph(vpred = (id, attr) => attr._2 > 0)
-     .mapVertices((id, attr) => attr._1)
+  def coarsen(
+    g: Graph[V, E],
+    pred: Triplet[V, E] => Boolean,
+    reduce: (V,V) => V
+  ): Graph[V,E] = {
+    // Restrict graph to contractable edges
+    val subG = g.subgraph(v => True, pred)
+    // Compute connected component id for all V
+    val cc: Col[Id, Id] = ConnectedComp(subG).vertices
+    // Merge all vertices in same component
+    val superVerts = g.vertices.leftJoin(cc).map {
+    (vId, (vProp, cc)) => (cc, vProp))
+    }.reduceByKey(reduce)
+    // Link remaining edges between components
+    val invG = g.subgraph(v=>True, !pred)
+    val remainingEdges =
+    invG.leftJoin(cc).triplets.map {
+    e => ((e.src.cc, e.dst.cc), e.attr)
+    }
+    // Return the final graph
+    Graph(superVerts, remainingEdges)
   }
+
+  def cluster(g: FRGraph, alpha: Double): FRGraph {
+    g
+  }
+
+  //def coarsen(g: FRGraph, alpha: Double): FRGraph = {
+  //  // 1) compute support for each edge
+  //  var mergeGraph = g.mapTriplets(e => {
+  //    // a) union the nodes' sub-node sets
+  //    val src = e.srcAttr
+  //    val dst = e.dstAttr
+  //    val nodes = src.nodes ++ dst.nodes
+  //    val size = nodes.size.toDouble
+  //    // b) for each path p:
+  //    //   i) union its node sets
+  //    val intervals = (src.intervals.keySet ++ dst.intervals.keySet).map(p => {
+  //      if (src.intervals.contains(p) && !dst.intervals.contains(p)) {
+  //        p -> src.intervals(p)
+  //      } else if (!src.intervals.contains(p) && dst.intervals.contains(p)) {
+  //        p -> dst.intervals(p)
+  //      } else {
+  //        p -> combineIntervals(src.intervals(p) ++ dst.intervals(p))
+  //      }
+  //    }).toMap
+  //    //   ii) compute alpha (penetrance: fraction of nodes it traverses)
+  //    //   iii) add p to supporting if it satisfies alpha/kappa constraints
+  //    val supporting = intervals.filter{case (p, i) => {
+  //      i.filter{case (_, _, s) => alpha <= (s / size)}.nonEmpty
+  //    }}.keySet
+  //    FRVertex(nodes, intervals, supporting)
+  //  }).mapVertices((id, _) => -1L)
+  //  mergeGraph.cache()
+  //  var vertices = mergeGraph.vertices
+  //  val edges = mergeGraph.edges
+  //  // 2) greedily compute maximal weighted matching (greedy is ideal here)
+  //  while (mergeGraph.numEdges > 0) {
+  //    val pairedVertices = mergeGraph
+  //      .collectEdges(EdgeDirection.Either)
+  //      .mapValues((id, edges) => {
+  //        if (edges.isEmpty) {
+  //          -1L
+  //        } else {
+  //          val e = edges.reduce((e1, e2) => {
+  //            val id1 = if (e1.srcId == id) e1.dstId else e1.srcId
+  //            val id2 = if (e2.srcId == id) e2.dstId else e2.srcId
+  //            val sup1 = e1.attr.supporting.size
+  //            val sup2 = e2.attr.supporting.size
+  //            if (sup1 > sup2 || (sup1 == sup2 && id1 > id2)) {
+  //              e1
+  //            } else {
+  //              e2
+  //            }
+  //          })
+  //          if (e.srcId == id) {
+  //            e.dstId
+  //          } else {
+  //            e.srcId
+  //          }
+  //        }
+  //      })
+  //    val matchedVertices = Graph(pairedVertices, mergeGraph.edges)
+  //      .aggregateMessages[Long](
+  //        ec => {
+  //          if (ec.srcId == ec.dstAttr && ec.dstId == ec.srcAttr) {
+  //            ec.sendToSrc(ec.srcAttr)
+  //            ec.sendToDst(ec.dstAttr)
+  //          }
+  //        },
+  //        (a, b) => a  // each vertex will only receive one message
+  //      )
+  //    vertices = vertices.leftZipJoin(matchedVertices)((id, v1, v2) => {
+  //      v2.getOrElse(v1)
+  //    })
+  //    val mergeVertices = mergeGraph.vertices.leftZipJoin(matchedVertices)(
+  //      (id, v1, v2) => {
+  //        v2.getOrElse(v1)  // v1 should always be -1
+  //      }
+  //    )
+  //    mergeGraph = Graph(mergeVertices, mergeGraph.edges).subgraph(
+  //      vpred = (id, v) => v == -1
+  //    )
+  //  }
+  //  mergeGraph.unpersist()
+  //  // 3) construct new FRGraph by contracting matching edges
+  //  val contractionGraph = Graph(vertices, edges)
+  //  contractionGraph.cache()
+  //  val contractedEdges: RDD[FREdge] = contractionGraph
+  //    .triplets.filter(e => {
+  //      !(e.srcId != e.dstAttr && e.dstId != e.srcAttr)
+  //    }).map(e => {
+  //      val src = if (e.srcAttr == -1) e.srcId else math.min(e.srcId, e.srcAttr)
+  //      val dst = if (e.dstAttr == -1) e.dstId else math.min(e.dstId, e.dstAttr)
+  //      Edge(src, dst)
+  //    })
+  //  val contractedVertices = contractionGraph
+  //    .aggregateMessages[FRVertex](
+  //      ec => {
+  //        if (ec.srcId == ec.dstAttr && ec.dstId == ec.srcAttr) {
+  //          if (ec.srcId < ec.dstId) {
+  //            ec.sendToSrc(ec.attr)
+  //          } else {
+  //            ec.sendToDst(ec.attr)
+  //          }
+  //        }
+  //      },
+  //      // each vertex will only receive one message
+  //      (a, b) => a
+  //    )
+  //  contractionGraph.unpersist()
+  //  val contractedGraph = Graph(g.vertices, contractedEdges)
+  //    .joinVertices(contractedVertices)((id, _, a) => a)
+  //  contractedGraph.outerJoinVertices(contractedGraph.degrees) {
+  //    (id, attr, deg) => (attr, deg.getOrElse(0))
+  //  }.subgraph(vpred = (id, attr) => attr._2 > 0)
+  //   .mapVertices((id, attr) => attr._1)
+  //}
 
   // combines intervals that are overlapping into a single interval
   def combineIntervals(
@@ -264,12 +291,13 @@ object Algorithms {
       }}
       FRVertex(Array(id), intervals, intervals.keySet)
     })
+    frGraph.cache()
     // perform hierarchical clustering via coarsening
     var iFRs = frGraph.vertices.filter{case (id, attr) => {
       attr.nodes.size >= minsize && attr.supporting.size >= minsupport
     }}
     while (frGraph.numVertices > 1) {
-      frGraph = coarsen(frGraph, alpha)
+      frGraph = cluster(frGraph, alpha)
       val newFRs = frGraph.vertices.filter{case (id, attr) => {
         attr.nodes.size >= minsize && attr.supporting.size >= minsupport
       }}

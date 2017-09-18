@@ -53,12 +53,18 @@ object App {
     //val (id, intermediate, matched) = parseArgs(args)
     // create the Spark context
     val conf = new SparkConf()
+      //.set("spark.executor.memory", "6g")
+      //.set("spark.default.parallelism", "2")
       .setAppName("gcv-pangenomics")
-      .setMaster("local[1]")
+      .setMaster("local[*]")
     val sc = new SparkContext(conf)
     // construct the graph
+    println("loading graph")
+    var t0 = System.currentTimeMillis()
     val db = new Neo4j(sc)
     val geneGraph = db.loadGeneGraph()
+    var t1 = System.currentTimeMillis()
+    println("Elapsed time: " + ((t1 - t0)/1000) + "s")
     // run the AFS algorithms
     //val algorithms = new Algorithms(sc)
     //val intervals = algorithms.approximateFrequentSubpaths(
@@ -70,9 +76,13 @@ object App {
     //val macroJSON = json.afsToMacroSynteny(id, intervals, intervalData)
     //json.dump("macro.json", macroJSON)
     // run the FR algorithm
+    println("FR")
+    t0 = System.currentTimeMillis()
     val alpha = 0.75
     val kappa = 10
     val regions = Algorithms.frequentedRegions(geneGraph, alpha, kappa, 2, 2).collect()
+    t1 = System.currentTimeMillis()
+    println("Elapsed time: " + ((t1 - t0)/1000) + "s")
     val bed = BED.frsToBED(regions, alpha, kappa)
     JSON.dump("FRs.bed", bed)
   }
